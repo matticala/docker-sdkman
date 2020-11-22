@@ -1,0 +1,45 @@
+name: Docker
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'
+  push:
+    branches:
+      - master
+
+env:
+  IMAGE_NAME: sdkman
+  VERSION: latest
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run tests
+        run: |
+            docker build . --file Dockerfile
+  push:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build image
+        run: docker build . --file Dockerfile --tag $IMAGE_NAME
+      - name: Log into registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
+      - name: Push image
+        run: |
+          IMAGE_ID=docker.pkg.github.com/${{ github.repository_owner }}/$IMAGE_NAME
+          GITHUB_SHORT_SHA=${GITHUB_SHA:0:8}
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+
+          echo IMAGE_ID=$IMAGE_ID
+          echo GITHUB_SHORT_SHA=$GITHUB_SHORT_SHA
+          echo VERSION=$VERSION
+          
+          docker tag $IMAGE_NAME $IMAGE_ID:$GITHUB_SHORT_SHA
+          docker push $IMAGE_ID:$GITHUB_SHORT_SHA
+          
+          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION
